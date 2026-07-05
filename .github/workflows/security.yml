@@ -1,0 +1,74 @@
+# Sets the name of the workflow, which is displayed in the "Actions" tab of your GitHub repository.
+name: Security Vulnerability Check
+
+# Specifies the event that will trigger the workflow. It runs on any 'pull_request' event.
+on: [pull_request]
+
+# Defines the jobs to be run. This workflow has a single job.
+jobs:
+  # The unique identifier for the job.
+  security-scan:
+    # Specifies the type of virtual machine to run the job on. 'ubuntu-latest' is a GitHub-hosted Linux runner.
+    runs-on: ubuntu-latest
+    # Defines the permissions granted to the GITHUB_TOKEN for this job.
+    permissions:
+      # Required to allow the job to upload SARIF results to GitHub's Code Scanning feature.
+      security-events: write
+      # Required for the 'actions/checkout' step to read the repository's contents.
+      contents: read
+
+    # A sequence of tasks that will be executed as part of the job.
+    steps:
+      # Step 1: Checks out your repository's code onto the runner.
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Sets up a specific version of Python on the runner.
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12' # Use a version fully supported by all dependencies
+
+      # Step 3: Installs the Python-based security scanning tools (Bandit and Safety).
+      - name: Install Python dependencies for scanning
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety
+
+      # Step 4: Runs Trivy to scan the filesystem for vulnerabilities.
+      - name: Run Trivy for filesystem vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          # 'fs' tells Trivy to scan the local filesystem (the checked-out code).
+          scan-type: 'fs'
+          # '.' tells Trivy to scan the entire current directory.
+          scan-ref: '.'
+          # Specifies the output format as SARIF, for integration with GitHub Security.
+          format: 'sarif'
+          # Defines the name of the output file.
+          output: 'trivy-fs-results.sarif'
+          # Sets the vulnerability severity level that will cause the workflow to fail.
+          severity: 'CRITICAL'
+          # An exit code of '1' will fail the step if vulnerabilities of the specified severity are found.
+          exit-code: '1'
+
+      # Step 5: Runs Bandit to perform static analysis on the Python code for security issues.
+      - name: Run Bandit for Python static analysis
+        run: bandit -r . -f sarif -o bandit-results.sarif
+        # Allows the workflow to continue even if Bandit finds issues, ensuring results are always uploaded.
+        continue-on-error: true
+
+      # Step 6: Runs Safety to check installed Python packages against a database of known vulnerabilities.
+      - name: Run Safety for Python dependency check
+        run: safety check -r requirements.txt --sarif --output safety-results.sarif
+        continue-on-error: true
+
+      # Step 7: Uploads all generated SARIF files to GitHub's Security tab.
+      - name: Upload security scan results to GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          # A multi-line string to specify all SARIF files to be uploaded.
+          sarif_file: |
+            trivy-fs-results.sarif
+            bandit-results.sarif
+            safety-results.sarif
