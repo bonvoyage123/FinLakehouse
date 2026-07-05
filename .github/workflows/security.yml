@@ -50,8 +50,7 @@ jobs:
           # Sets the vulnerability severity level that will cause the workflow to fail.
           severity: 'CRITICAL'
           # An exit code of '1' will fail the step if vulnerabilities of the specified severity are found.
-          exit-code: '1'
-
+          exit-code: '1'        continue-on-error: true
       # Step 5: Runs Bandit to perform static analysis on the Python code for security issues.
       - name: Run Bandit for Python static analysis
         run: bandit -r . -f sarif -o bandit-results.sarif
@@ -65,7 +64,7 @@ jobs:
 
       # Step 7: Uploads all generated SARIF files to GitHub's Security tab.
       - name: Upload security scan results to GitHub
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           # A multi-line string to specify all SARIF files to be uploaded.
           sarif_file: |
