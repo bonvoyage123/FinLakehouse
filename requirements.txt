@@ -2,5 +2,5 @@ pyspark
 boto3
 dbt-core
 dbt-snowflake
-airflow
+apache-airflow
 pytest
