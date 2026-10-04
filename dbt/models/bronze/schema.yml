@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: stock_prices
+    description: Bronze layer placeholder for raw price data.
+    columns:
+      - name: placeholder_id
+        description: Placeholder column used during scaffolding.

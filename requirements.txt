@@ -1,6 +1,8 @@
-pyspark
-boto3
-dbt-core
-dbt-snowflake
-apache-airflow
-pytest
+pyspark==3.5.0
+boto3==1.34.40
+requests==2.32.3
+python-dotenv==1.1.0
+dbt-core==1.7.9
+dbt-snowflake==1.7.1
+apache-airflow==2.8.1
+pytest==8.0.0

@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: company_dim
+    description: Silver layer placeholder for company dimensional data.
+    columns:
+      - name: company_id
+        description: Surrogate key for company master data.

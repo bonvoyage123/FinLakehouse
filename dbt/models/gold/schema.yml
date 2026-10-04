@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: fact_stock_prices
+    description: Gold layer placeholder for analytical fact data.
+    columns:
+      - name: fact_id
+        description: Unique fact key used in analytics.
