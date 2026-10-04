@@ -1,73 +1,63 @@
-# Sets the name of the workflow, which is displayed in the "Actions" tab of your GitHub repository.
 name: Security Vulnerability Check
 
-# Specifies the event that will trigger the workflow. It runs on any 'pull_request' event.
-on: [pull_request]
+on:
+  push:
+    branches:
+      - Dev
+      - main
+  pull_request:
+    branches:
+      - Dev
+      - main
 
-# Defines the jobs to be run. This workflow has a single job.
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
-  # The unique identifier for the job.
   security-scan:
-    # Specifies the type of virtual machine to run the job on. 'ubuntu-latest' is a GitHub-hosted Linux runner.
     runs-on: ubuntu-latest
-    # Defines the permissions granted to the GITHUB_TOKEN for this job.
-    permissions:
-      # Required to allow the job to upload SARIF results to GitHub's Code Scanning feature.
-      security-events: write
-      # Required for the 'actions/checkout' step to read the repository's contents.
-      contents: read
 
-    # A sequence of tasks that will be executed as part of the job.
     steps:
-      # Step 1: Checks out your repository's code onto the runner.
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      # Step 2: Sets up a specific version of Python on the runner.
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12' # Use a version fully supported by all dependencies
+          python-version: "3.11"
 
-      # Step 3: Installs the Python-based security scanning tools (Bandit and Safety).
-      - name: Install Python dependencies for scanning
-        run: |
-          python -m pip install --upgrade pip
-          pip install bandit safety
+      - name: Install security scan tools
+        run: python -m pip install bandit pip-audit
 
-      # Step 4: Runs Trivy to scan the filesystem for vulnerabilities.
-      - name: Run Trivy for filesystem vulnerabilities
-        uses: aquasecurity/trivy-action@master
+      - name: Scan files with Trivy
+        id: trivy
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          # 'fs' tells Trivy to scan the local filesystem (the checked-out code).
-          scan-type: 'fs'
-          # '.' tells Trivy to scan the entire current directory.
-          scan-ref: '.'
-          # Specifies the output format as SARIF, for integration with GitHub Security.
-          format: 'sarif'
-          # Defines the name of the output file.
-          output: 'trivy-fs-results.sarif'
-          # Sets the vulnerability severity level that will cause the workflow to fail.
-          severity: 'CRITICAL'
-          # An exit code of '1' will fail the step if vulnerabilities of the specified severity are found.
-          exit-code: '1'        continue-on-error: true
-      # Step 5: Runs Bandit to perform static analysis on the Python code for security issues.
-      - name: Run Bandit for Python static analysis
-        run: bandit -r . -f sarif -o bandit-results.sarif
-        # Allows the workflow to continue even if Bandit finds issues, ensuring results are always uploaded.
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
         continue-on-error: true
 
-      # Step 6: Runs Safety to check installed Python packages against a database of known vulnerabilities.
-      - name: Run Safety for Python dependency check
-        run: safety check -r requirements.txt --sarif --output safety-results.sarif
+      - name: Scan Python code with Bandit
+        id: bandit
+        run: bandit -r src airflow/dags
         continue-on-error: true
 
-      # Step 7: Uploads all generated SARIF files to GitHub's Security tab.
-      - name: Upload security scan results to GitHub
+      - name: Scan dependencies with pip-audit
+        id: dependencies
+        run: pip-audit -r requirements.txt
+        continue-on-error: true
+
+      - name: Upload Trivy results
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
-          # A multi-line string to specify all SARIF files to be uploaded.
-          sarif_file: |
-            trivy-fs-results.sarif
-            bandit-results.sarif
-            safety-results.sarif
+          sarif_file: trivy-results.sarif
+
+      - name: Fail if a security scan failed
+        if: always() && (steps.trivy.outcome == 'failure' || steps.bandit.outcome == 'failure' || steps.dependencies.outcome == 'failure')
+        run: exit 1
