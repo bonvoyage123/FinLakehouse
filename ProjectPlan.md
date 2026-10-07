@@ -5,10 +5,11 @@
 **Project:** FinLakehouse\
 **Type:** Portfolio-grade Data Engineering project\
 **Primary objective:** Build a production-style financial markets data
-platform that ingests market and company financial data, stores raw and
-curated data in AWS S3, processes and validates data with PySpark,
-creates analytical models in Snowflake using dbt, orchestrates the
-pipeline with Airflow, and exposes the resulting datasets through a
+platform that ingests market and company financial data with Python,
+stores raw and curated data in AWS S3, processes Raw through Bronze and
+Silver with PySpark jobs on AWS Glue, loads Silver data into Snowflake,
+creates analytical models there with dbt, orchestrates the pipeline
+with Airflow on AWS MWAA, and exposes the resulting datasets through a
 Power BI dashboard.
 
 The project is designed primarily as a **Data Engineering project**,
@@ -17,35 +18,33 @@ with the dashboard serving as the consumer of the platform.
 ### Core pipeline
 
 ``` text
-Financial Data APIs
+Financial Modeling Prep API
         |
         v
 Python Ingestion
         |
         v
-AWS S3 - Raw / Landing
+AWS S3 - Raw
         |
         v
-PySpark
+AWS Glue (PySpark)
         |
         v
-S3 - Silver / Curated Parquet
+AWS S3 - Bronze -> Silver
         |
         v
-Snowflake - Staging / Core
+Snowflake - Silver data
         |
         v
-dbt
+dbt in Snowflake
         |
         v
-Gold / Analytical Marts
+Gold / Analytical Marts in Snowflake
         |
-        +------------------+
-        |                  |
-        v                  v
-    Power BI          SQL / Analytics
+        v
+    Power BI
 
-Airflow orchestrates the end-to-end pipeline.
+Airflow on AWS MWAA orchestrates ingestion, Glue, Snowflake and dbt.
 ```
 
 ------------------------------------------------------------------------
@@ -61,7 +60,7 @@ Build a production-style Financial Lakehouse that:
 -   Supports incremental processing.
 -   Models business-ready analytical datasets.
 -   Loads curated data into Snowflake.
--   Orchestrates the complete workflow using Airflow.
+-   Orchestrates the complete workflow using Airflow on AWS MWAA.
 -   Provides business-facing analytics through Power BI.
 -   Demonstrates software engineering, testing, CI/CD, logging, and
     documentation practices.
@@ -75,12 +74,12 @@ ETL tutorial.
 
 ### Primary goals
 
-1.  Demonstrate practical PySpark data engineering.
+1.  Demonstrate practical PySpark data engineering with AWS Glue.
 2.  Demonstrate AWS S3 data-lake fundamentals.
 3.  Demonstrate Snowflake ingestion, modelling, and analytical
     workloads.
 4.  Demonstrate dbt-based transformation and testing.
-5.  Demonstrate Airflow orchestration.
+5.  Demonstrate Airflow orchestration on AWS MWAA.
 6.  Demonstrate incremental and idempotent data processing.
 7.  Demonstrate data-quality engineering.
 8.  Demonstrate Python application/package structure.
@@ -201,44 +200,34 @@ pipeline is stable.
 ## 6.1 Logical architecture
 
 ``` text
-                  External Financial Data
+             Financial Modeling Prep API
                            |
                            v
-                  Python API Extractor
+                    Python Ingestion
                            |
                            v
-                    RAW / LANDING
-                        AWS S3
+                       S3 Raw
                            |
                            v
-                     BRONZE LAYER
-                  Structured Parquet
+              AWS Glue (PySpark jobs)
+                Raw -> Bronze -> Silver
                            |
                            v
-                       PySpark
-                           |
-                           v
-                     SILVER LAYER
-              Cleaned / Validated Data
+                       S3 Silver
                            |
                            v
                       Snowflake
-                    Staging / Core
+                    Silver data layer
                            |
                            v
-                         dbt
+                 dbt in Snowflake
+                  Gold / marts
                            |
                            v
-                      GOLD LAYER
-                 Analytical Data Marts
-                           |
-                    +------+------+
-                    |             |
-                    v             v
-                 Power BI     SQL Users
+                       Power BI
 
-                       AIRFLOW
-            Orchestrates the entire pipeline
+          Airflow on AWS MWAA orchestrates:
+       Python ingestion -> Glue -> Snowflake -> dbt
 ```
 
 ------------------------------------------------------------------------
@@ -288,6 +277,8 @@ Responsibilities:
 -   Handle malformed records.
 -   Convert to Parquet.
 -   Partition data appropriately.
+-   Run as an AWS Glue PySpark job reading S3 Raw and writing S3
+    Bronze.
 
 Example:
 
@@ -316,6 +307,8 @@ Responsibilities:
 -   Apply business rules.
 -   Perform data-quality checks.
 -   Handle late-arriving or corrected records.
+-   Run as an AWS Glue PySpark job reading Bronze and writing trusted
+    Silver data to S3.
 
 Example datasets:
 
@@ -408,23 +401,27 @@ invalid data from silently reaching downstream analytical models.
 
   Technology       Primary responsibility
   ---------------- -------------------------------------------------
-  Python           API ingestion, utilities, application structure
-  AWS S3           Raw and curated data storage
-  IAM              Access control
-  PySpark          Large-scale transformation and validation
-  Parquet          Columnar lake storage
-  Snowflake        Analytical warehouse
-  dbt              SQL transformations, modelling, testing
-  Airflow          Pipeline orchestration
-  Docker           Reproducible local environment
+  Python           Financial API ingestion, utilities, application structure
+  AWS S3           Raw, Bronze and Silver data storage
+  AWS Glue         Managed execution of PySpark Raw-to-Silver jobs
+  IAM              AWS access control for S3, Glue and MWAA
+  PySpark          Bronze/Silver transformations and validation in Glue
+  Parquet          Columnar Bronze/Silver lake storage
+  Snowflake        Silver data and analytical warehouse
+  dbt              Snowflake SQL transformations, Gold models and tests
+  Airflow / MWAA   End-to-end pipeline orchestration on AWS
+  Docker           Reproducible local development and testing
   GitHub Actions   CI/CD
-  Power BI         Business-facing analytics
+  Power BI         Business-facing analytics from Snowflake Gold models
 
 ------------------------------------------------------------------------
 
 # 10. PySpark Focus
 
-PySpark is the primary technical focus of the project.
+PySpark running as AWS Glue jobs is the primary technical focus of the
+project. Glue owns the Raw-to-Bronze and Bronze-to-Silver processing
+steps; Python ingestion remains a separate step that lands API responses
+in S3 Raw.
 
 The implementation should demonstrate:
 
@@ -450,16 +447,18 @@ PySpark can be discussed as a substantive skill during interviews.
 
 # 11. Snowflake Scope
 
-Snowflake should be used for the analytical warehouse layer.
+Snowflake should be used for the analytical warehouse and dbt modelling
+layers. Curated Silver data is loaded from S3 into Snowflake before dbt
+builds Gold models.
 
 The project should cover:
 
 -   Databases.
 -   Schemas.
 -   Tables.
--   Stages.
+-   Stages and storage integrations for S3 Silver data.
 -   File formats.
--   Loading Parquet data.
+-   Loading Silver Parquet data.
 -   `COPY INTO`.
 -   Incremental loading.
 -   Warehouse usage.
@@ -512,40 +511,26 @@ mart_instrument_performance
 
 # 13. Airflow Scope
 
-Airflow will orchestrate the complete workflow after the individual
+Apache Airflow, deployed on AWS Managed Workflows for Apache Airflow
+(MWAA), will orchestrate the complete workflow after the individual
 components are independently functional.
 
 Target DAG:
 
 ``` text
-start
-  |
-  v
-check_source
-  |
-  v
-ingest_raw
-  |
-  v
-validate_raw
-  |
-  v
-spark_transform
-  |
-  v
+ingest_api
+    |
+    v
+glue_transform
+    |
+    v
 load_snowflake
-  |
-  v
-dbt_staging
-  |
-  v
-dbt_models
-  |
-  v
+    |
+    v
+dbt_run
+    |
+    v
 data_quality
-  |
-  v
-success
 ```
 
 Airflow functionality:
@@ -560,6 +545,8 @@ Airflow functionality:
 -   Backfills.
 -   Catchup.
 -   Idempotent task design.
+-   AWS Glue job submission and completion monitoring.
+-   MWAA deployment and AWS connection/IAM configuration.
 
 ------------------------------------------------------------------------
 
@@ -618,6 +605,7 @@ purpose of the project.
 -   Create repository structure.
 -   Set up Python environment.
 -   Set up Docker.
+-   Plan AWS S3, Glue, IAM, Snowflake and MWAA configuration.
 -   Define backlog.
 
 ### Deliverables
@@ -668,17 +656,19 @@ Daily market data can be successfully retrieved and landed in S3.
 
 ------------------------------------------------------------------------
 
-## Phase 2 --- Bronze Layer
+## Phase 2 --- AWS Glue Bronze Layer
 
 **Target:** Week 2
 
 ### Objectives
 
-Convert raw API data into structured Parquet.
+Create the first AWS Glue PySpark job to convert raw API data in S3 into
+structured Bronze Parquet data.
 
 ### Tasks
 
 -   Read raw JSON.
+-   Create the Glue job and configure its IAM role and S3 access.
 -   Define/validate schema.
 -   Standardize data types.
 -   Handle malformed records.
@@ -690,15 +680,15 @@ Convert raw API data into structured Parquet.
 
 -   Bronze datasets.
 -   Partitioned Parquet.
--   PySpark transformation jobs.
+-   AWS Glue PySpark job for Raw-to-Bronze processing.
 
 ### Exit criteria
 
-Raw data is converted into queryable structured datasets.
+Raw data is converted into queryable Bronze datasets in S3 by AWS Glue.
 
 ------------------------------------------------------------------------
 
-## Phase 3 --- Silver Layer
+## Phase 3 --- AWS Glue Silver Layer
 
 **Target:** Week 3
 
@@ -718,6 +708,7 @@ Produce trusted, clean datasets.
 -   Incremental processing.
 -   Idempotency.
 -   Late-arriving/corrected data handling.
+-   Write curated Silver Parquet datasets to S3.
 
 ### Deliverables
 
@@ -728,7 +719,7 @@ Produce trusted, clean datasets.
 
 ### Exit criteria
 
-Trusted Silver datasets are available.
+Trusted Silver datasets are available in S3 and are produced by AWS Glue.
 
 ------------------------------------------------------------------------
 
@@ -745,7 +736,8 @@ Create business-ready analytical models.
 -   Configure Snowflake.
 -   Create schemas.
 -   Create stages/file formats.
--   Load Silver data.
+-   Configure secure Snowflake access to S3 Silver data.
+-   Load Silver data into Snowflake staging/core tables.
 -   Build dbt sources.
 -   Build staging models.
 -   Build dimensions.
@@ -772,7 +764,7 @@ Gold datasets are ready for BI consumption.
 
 ------------------------------------------------------------------------
 
-## Phase 5 --- Airflow Orchestration
+## Phase 5 --- Airflow on AWS MWAA Orchestration
 
 **Target:** Week 6
 
@@ -782,11 +774,17 @@ Automate the end-to-end pipeline.
 
 ### Tasks
 
--   Create Airflow DAG.
--   Connect ingestion.
--   Trigger PySpark jobs.
--   Trigger Snowflake loads.
--   Trigger dbt.
+-   Deploy/configure the MWAA environment, IAM permissions and required
+    connections.
+-   Create the Airflow DAG and deploy it to MWAA.
+-   Implement the task chain: `ingest_api` → `glue_transform` →
+    `load_snowflake` → `dbt_run` → `data_quality`.
+-   Have `ingest_api` fetch financial API data and land it in S3 Raw.
+-   Have `glue_transform` submit and monitor the AWS Glue job that
+    produces Bronze and Silver data.
+-   Have `load_snowflake` load S3 Silver data into Snowflake.
+-   Have `dbt_run` build and test the dbt models.
+-   Have `data_quality` run final pipeline data-quality checks.
 -   Add retries.
 -   Add logging.
 -   Add failure handling.
@@ -795,13 +793,14 @@ Automate the end-to-end pipeline.
 
 ### Deliverables
 
--   End-to-end Airflow DAG.
+-   End-to-end Airflow DAG running on AWS MWAA.
+-   Glue job monitoring and Snowflake/dbt orchestration.
 -   Pipeline logs.
 -   Retry/failure handling.
 
 ### Exit criteria
 
-The complete pipeline can be executed through Airflow.
+The complete pipeline can be executed through Airflow on AWS MWAA.
 
 ------------------------------------------------------------------------
 
@@ -906,12 +905,17 @@ Project is portfolio-ready and can be demonstrated end-to-end.
 finlakehouse/
 │
 ├── airflow/
-│   └── dags/
+│   ├── dags/
+│   └── plugins/
+│
+├── glue/
+│   └── jobs/
+│       ├── raw_to_bronze.py
+│       └── bronze_to_silver.py
 │
 ├── src/
 │   ├── ingestion/
 │   ├── transformation/
-│   │   └── spark/
 │   ├── validation/
 │   ├── utilities/
 │   └── config/
@@ -978,6 +982,14 @@ Examples:
 -   Distributed processing.
 -   Suitable for large-scale transformation.
 -   Provides opportunities to demonstrate Spark optimisation.
+-   Reusable transformation logic can be developed and tested locally,
+    then packaged for Glue job deployment.
+
+### Why AWS Glue?
+
+-   Managed, serverless execution for PySpark ETL jobs.
+-   Integrates with S3 and the AWS data platform.
+-   Provides job monitoring and operational integration with MWAA.
 
 ### Why Snowflake?
 
@@ -999,6 +1011,8 @@ Examples:
 -   Scheduling.
 -   Dependencies.
 -   Retry and failure handling.
+-   AWS MWAA provides a managed Airflow environment for the deployed
+    pipeline.
 
 ------------------------------------------------------------------------
 
@@ -1029,10 +1043,11 @@ Test:
 Test:
 
 ``` text
-API → S3
-S3 → PySpark
-PySpark → Snowflake
+API → Python → S3 Raw
+S3 Raw → AWS Glue PySpark → S3 Bronze → S3 Silver
+S3 Silver → Snowflake
 Snowflake → dbt
+Snowflake Gold → Power BI
 ```
 
 ## Pipeline tests
@@ -1082,6 +1097,8 @@ The completed project should generate an interview question bank.
 ## PySpark
 
 -   Why Spark instead of Pandas?
+-   How do AWS Glue jobs read from and write to S3?
+-   How do you monitor and retry a failed Glue job?
 -   What causes a shuffle?
 -   When would you use a broadcast join?
 -   How would you handle data skew?
@@ -1114,6 +1131,9 @@ The completed project should generate an interview question bank.
 
 ## Airflow
 
+-   What does AWS MWAA manage compared with self-hosted Airflow?
+-   How does a DAG submit and monitor an AWS Glue job?
+-   How are AWS credentials and permissions provided to MWAA tasks?
 -   What happens when a task fails?
 -   How do retries work?
 -   What is catchup?
@@ -1176,13 +1196,15 @@ The project is considered complete when:
 -   [ ] Raw data is preserved in S3.
 -   [ ] Bronze data is available in Parquet.
 -   [ ] Silver data is cleaned and validated.
+-   [ ] AWS Glue processes S3 Raw into Bronze and Silver.
 -   [ ] Incremental processing works.
 -   [ ] Duplicate ingestion does not create duplicate business records.
 -   [ ] Late/corrected data has a defined handling strategy.
 -   [ ] Silver data is loaded into Snowflake.
 -   [ ] dbt creates Gold models.
 -   [ ] dbt tests are implemented.
--   [ ] Airflow orchestrates the pipeline.
+-   [ ] Airflow on AWS MWAA orchestrates ingestion, Glue, Snowflake and
+    dbt.
 -   [ ] Retries and failure handling work.
 -   [ ] Power BI consumes Gold data.
 -   [ ] Unit tests exist.
@@ -1200,8 +1222,8 @@ The project is considered complete when:
 The project should be presented as:
 
 > **FinLakehouse --- an end-to-end financial markets data engineering
-> platform demonstrating Python, PySpark, AWS S3, Snowflake, dbt,
-> Airflow, data quality, incremental processing, Docker and CI/CD.**
+> platform demonstrating Python, PySpark on AWS Glue, S3, Snowflake, dbt,
+> Airflow on MWAA, data quality, incremental processing, Docker and CI/CD.**
 
 The project is intended to demonstrate the ability to design, build,
 operate, troubleshoot, and explain a modern data pipeline --- not simply
