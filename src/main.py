@@ -1,12 +1,9 @@
-from src.config.settings import get_settings
-from src.ingestion.api_client import FinancialDataClient
+from src.ingestion.fmp_ingestion import ingest_fmp_data
 
 
 def main():
-    settings = get_settings()
-    client = FinancialDataClient(settings.finance_api_base_url, settings.finance_api_key)
-    print(f"Project: {settings.project_name}")
-    print(f"API base URL: {client.base_url}")
+    uploaded_keys = ingest_fmp_data()
+    print(f"Uploaded {len(uploaded_keys)} raw files to S3.")
 
 
 if __name__ == "__main__":

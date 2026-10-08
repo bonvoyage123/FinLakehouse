@@ -1,11 +1,12 @@
+"""Save API response data directly to S3 as JSON."""
+
 import json
-from pathlib import Path
 
 import boto3
 
 
 class S3Uploader:
-    """Upload raw JSON payloads to an S3 landing zone."""
+    """Save raw API response data in the S3 landing zone."""
 
     def __init__(self, bucket, prefix="raw"):
         self.bucket = bucket
@@ -14,16 +15,12 @@ class S3Uploader:
 
     def upload_json(self, data, object_key):
         full_key = self.prefix + "/" + object_key
+        json_text = json.dumps(data)
+        json_bytes = json_text.encode("utf-8")
         self._client.put_object(
             Bucket=self.bucket,
             Key=full_key,
-            Body=json.dumps(data).encode("utf-8"),
+            Body=json_bytes,
             ContentType="application/json",
         )
-        return full_key
-
-    def upload_file(self, file_path, object_key):
-        source = Path(file_path)
-        full_key = self.prefix + "/" + object_key
-        self._client.upload_file(str(source), self.bucket, full_key)
         return full_key

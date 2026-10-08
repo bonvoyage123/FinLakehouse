@@ -3,6 +3,8 @@ from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from src.ingestion.fmp_ingestion import ingest_fmp_data
+
 
 def integration_not_configured(integration):
     raise NotImplementedError(
@@ -19,8 +21,7 @@ with DAG(
 ) as dag:
     ingest_api = PythonOperator(
         task_id="ingest_api",
-        python_callable=integration_not_configured,
-        op_kwargs={"integration": "financial API ingestion"},
+        python_callable=ingest_fmp_data,
     )
     glue_transform = PythonOperator(
         task_id="glue_transform",

@@ -634,18 +634,23 @@ Build the initial ingestion framework.
 ### Tasks
 
 -   Create API client.
--   Handle authentication.
+-   Use FMP Stable API endpoints for daily prices, company profiles and
+    financial statements.
+-   Read the API key from `FMP_API_KEY` and symbols from
+    `FMP_SYMBOLS`.
 -   Implement timeout handling.
 -   Implement retry logic.
 -   Add logging.
 -   Add ingestion metadata.
--   Store raw API responses.
+-   Store raw API responses in S3 with ingestion-date and run
+    partitions.
 -   Partition data by ingestion date.
 -   Upload data to S3.
 
 ### Deliverables
 
 -   Python ingestion package.
+-   FMP API client and dataset-specific ingestion module.
 -   Raw JSON samples.
 -   S3 landing zone.
 -   Logging.
@@ -915,6 +920,9 @@ finlakehouse/
 │
 ├── src/
 │   ├── ingestion/
+│   │   ├── api_client.py
+│   │   ├── fmp_ingestion.py
+│   │   └── s3_uploader.py
 │   ├── transformation/
 │   ├── validation/
 │   ├── utilities/
